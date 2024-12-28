@@ -83,6 +83,16 @@ function FragmentLoader(config) {
         }
     }
 
+    // generate UUID for SR
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+    const identifier = generateUUID();
+    let idx = 0;
+
     function load(request) {
         const report = function (data, error) {
             eventBus.trigger(events.LOADING_COMPLETED, {
@@ -93,7 +103,48 @@ function FragmentLoader(config) {
             });
         };
 
+        const sr_api = function (api, data, filename, idx) {
+            const initFormData = new FormData();
+            initFormData.append('metadata', JSON.stringify({
+                identifier: identifier,
+                filename: filename,
+                idx: idx
+            }, { type: 'application/json' }));
+            initFormData.append('file', new Blob([data], { type: 'application/octet-stream' }));
+
+            fetch('http://127.0.0.1:5000/' + api, {
+                method: 'POST',
+                body: initFormData
+            }).then(response => {
+                if (response.status === 200) {
+                    if (api === 'sr') {
+                        response.blob().then(blob => {
+                            const reader = new FileReader();
+                            reader.onload = function() {
+                                const arrayBuffer = reader.result;
+                                report(arrayBuffer, undefined);
+                            };
+                            reader.readAsArrayBuffer(blob);
+                        });
+                    }
+                    else if (api === 'header') {
+                        report(data);
+                    }
+                    else {
+                        throw new Error('Unknown API');
+                    }
+                } else {
+                    report(undefined, new DashJSError(
+                        errors.SR_ERROR_CODE, 'Failed to send header', response.statusText
+                    ));
+                }
+            }).catch(error => {
+                report(undefined, new DashJSError(errors.SR_ERROR_CODE, error.message, 'FetchError'));
+            });
+        }
+
         if (request) {
+            let idx_now = ++idx;
             urlLoader.load({
                 request: request,
                 progress: function (event) {
@@ -114,7 +165,19 @@ function FragmentLoader(config) {
                     }
                 },
                 success: function (data) {
-                    report(data);
+                    // if (false) {
+                    if (request.mediaType === 'video') {
+                        switch (request.type) {
+                            case 'InitializationSegment':
+                                sr_api('header', data, request.url.split('/').pop(), idx_now);
+                                break;
+                            case 'MediaSegment':
+                                sr_api('sr', data, request.url.split('/').pop(), idx_now);
+                                break;
+                        }
+                    } else {
+                        report(data);
+                    }
                 },
                 error: function (request, statusText, errorText) {
                     report(

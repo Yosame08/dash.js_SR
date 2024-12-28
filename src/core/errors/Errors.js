@@ -160,6 +160,11 @@ class Errors extends ErrorsBase {
          */
         this.NO_SUPPORTED_KEY_IDS = 36;
 
+        /**
+         * Error code returned when SR failed
+         */
+        this.SR_ERROR_CODE = 37;
+
         this.MANIFEST_LOADER_PARSING_FAILURE_ERROR_MESSAGE = 'parsing failed for ';
         this.MANIFEST_LOADER_LOADING_FAILURE_ERROR_MESSAGE = 'Failed loading manifest: ';
         this.XLINK_LOADER_LOADING_FAILURE_ERROR_MESSAGE = 'Failed loading Xlink element: ';
